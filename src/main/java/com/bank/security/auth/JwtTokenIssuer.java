@@ -1,135 +1,95 @@
 package com.bank.security.auth;
 
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.*;
-import java.util.Base64;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.logging.Logger;
+
+/**
+ * JWT Issuer service designed for Java 25 and GlassFish runtime environments.
+ * Enforces strong key checks (256-bit minimum) and loads keys strictly via system properties or environment variables.
+ */
 public class JwtTokenIssuer {
 
-    private static final String SIGNING_ALG = "SHA256withECDSA";
-    private static final String ENCRYPTION_ALG = "AES/GCM/NoPadding";
-    private static final int GCM_IV_LENGTH = 12;
-    private static final int GCM_TAG_LENGTH = 128;
+    private static final Logger LOGGER = Logger.getLogger(JwtTokenIssuer.class.getName());
 
-    private final PrivateKey privateKey;
-    private final PublicKey publicKey;
+    public static final String SYS_PROP_JWT_SECRET = "jwt.secret";
+    public static final String ENV_JWT_SECRET = "JWT_SECRET";
+    private static final int MIN_KEY_BYTES = 32; // 256 bits for HS256
+
     private final SecretKey secretKey;
+    private final String issuer;
+    private final long tokenValidityMinutes;
 
-    public JwtTokenIssuer(PrivateKey privateKey, PublicKey publicKey, SecretKey secretKey) {
-        this.privateKey = privateKey;
-        this.publicKey = publicKey;
-        this.secretKey = secretKey;
+    public JwtTokenIssuer() {
+        this("BankSecurityIssuer", 60);
     }
 
-    /**
-     * Phase 1: Sign the raw payload using ECDSA
-     */
-    public String sign(String payload) {
-        try {
-            Signature signature = Signature.getInstance(SIGNING_ALG);
-            signature.initSign(this.privateKey);
+    public JwtTokenIssuer(String issuer, long tokenValidityMinutes) {
+        this.issuer = Objects.requireNonNull(issuer, "Issuer cannot be null");
+        this.tokenValidityMinutes = tokenValidityMinutes;
+        this.secretKey = initializeSecretKey();
+    }
 
-            byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
-            signature.update(payloadBytes);
-            byte[] sigBytes = signature.sign();
-
-            String encPayload = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadBytes);
-            String encSignature = Base64.getUrlEncoder().withoutPadding().encodeToString(sigBytes);
-
-            return encPayload + "." + encSignature;
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("Failed to digitally sign token payload", e);
+    private SecretKey initializeSecretKey() {
+        // 1. Resolve key from GlassFish System Property or OS Environment
+        String rawSecret = System.getProperty(SYS_PROP_JWT_SECRET);
+        if (rawSecret == null || rawSecret.isBlank()) {
+            rawSecret = System.getenv(ENV_JWT_SECRET);
         }
-    }
 
-    /**
-     * Phase 2: Encrypt the signed JWS token using AES-GCM
-     */
-    public String encrypt(String signedToken) {
-        try {
-            byte[] iv = new byte[GCM_IV_LENGTH];
-            SecureRandomHolder.INSTANCE.nextBytes(iv);
-
-            Cipher cipher = Cipher.getInstance(ENCRYPTION_ALG);
-            cipher.init(Cipher.ENCRYPT_MODE, this.secretKey, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
-
-            byte[] cipherText = cipher.doFinal(signedToken.getBytes(StandardCharsets.UTF_8));
-
-            ByteBuffer buffer = ByteBuffer.allocate(iv.length + cipherText.length);
-            buffer.put(iv);
-            buffer.put(cipherText);
-
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer.array());
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("Failed to encrypt signed token", e);
+        // 2. Strict Check: Prevent missing keys / hardcoded fallbacks
+        if (rawSecret == null || rawSecret.isBlank()) {
+            throw new IllegalStateException(
+                "JWT Startup Failed: Missing secret key. Set '-Djwt.secret' in GlassFish JVM options or set 'JWT_SECRET' environment variable."
+            );
         }
-    }
 
-    /**
-     * Reverse Phase 2: Decrypt the AES-GCM cipher payload
-     */
-    public String decrypt(String encryptedToken) {
-        try {
-            byte[] decoded = Base64.getUrlDecoder().decode(encryptedToken);
-            ByteBuffer buffer = ByteBuffer.wrap(decoded);
+        byte[] keyBytes = rawSecret.getBytes(StandardCharsets.UTF_8);
 
-            byte[] iv = new byte[GCM_IV_LENGTH];
-            buffer.get(iv);
-
-            byte[] cipherText = new byte[buffer.remaining()];
-            buffer.get(cipherText);
-
-            Cipher cipher = Cipher.getInstance(ENCRYPTION_ALG);
-            cipher.init(Cipher.DECRYPT_MODE, this.secretKey, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
-
-            byte[] plainText = cipher.doFinal(cipherText);
-            return new String(plainText, StandardCharsets.UTF_8);
-        } catch (GeneralSecurityException e) {
-            throw new SecurityException("Token decryption failed: invalid key or tampered cipher", e);
+        // 3. Strict Check: Enforce minimum 256-bit requirement
+        if (keyBytes.length < MIN_KEY_BYTES) {
+            throw new IllegalArgumentException(
+                "JWT Startup Failed: Secret key must be at least " + MIN_KEY_BYTES + " bytes (256 bits). Provided: " + keyBytes.length + " bytes."
+            );
         }
+
+        LOGGER.info("JwtTokenIssuer initialized successfully with 256-bit+ key.");
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    /**
-     * Reverse Phase 1: Verify the ECDSA signature and extract original payload
-     */
-    public String verifyAndExtractPayload(String signedToken) {
-        try {
-            String[] parts = signedToken.split("\\.");
-            if (parts.length != 2) {
-                throw new IllegalArgumentException("Invalid signed token structure");
-            }
+    public String generateToken(String username, List<String> roles) {
+        var now = Instant.now();
+        var expiration = now.plus(tokenValidityMinutes, ChronoUnit.MINUTES);
 
-            byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[0]);
-            byte[] signatureBytes = Base64.getUrlDecoder().decode(parts[1]);
-
-            Signature signature = Signature.getInstance(SIGNING_ALG);
-            signature.initVerify(this.publicKey);
-            signature.update(payloadBytes);
-
-            if (!signature.verify(signatureBytes)) {
-                throw new SecurityException("Digital signature verification failed!");
-            }
-
-            return new String(payloadBytes, StandardCharsets.UTF_8);
-        } catch (GeneralSecurityException e) {
-            throw new SecurityException("Token verification error", e);
-        }
+        return Jwts.builder()
+                .subject(username)
+                .issuer(issuer)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiration))
+                .claims(Map.of("roles", roles))
+                .signWith(secretKey, Jwts.SIG.HS256)
+                .compact();
     }
 
-    public String issueToken(String payload) {
-        return encrypt(sign(payload));
-    }
+    public Claims validateAndParseToken(String token) throws JwtException {
+        Jws<Claims> claimsJws = Jwts.parser()
+                .verifyWith(secretKey)
+                .requireIssuer(issuer)
+                .build()
+                .parseSignedClaims(token);
 
-    public String processToken(String token) {
-        return verifyAndExtractPayload(decrypt(token));
-    }
-
-    // Thread-safe singleton holder for SecureRandom
-    private static class SecureRandomHolder {
-        private static final SecureRandom INSTANCE = new SecureRandom();
+        return claimsJws.getPayload();
     }
 }

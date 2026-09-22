@@ -4,3 +4,14 @@ target/
 .settings/
 .vscode/
 *.env
+
+# IDE files
+.idea/
+*.iml
+.eclipse/
+.classpath
+.project
+
+# OS junk
+.DS_Store
+Thumbs.db
