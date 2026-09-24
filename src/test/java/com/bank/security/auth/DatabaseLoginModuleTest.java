@@ -18,8 +18,14 @@ public class DatabaseLoginModuleTest {
                 stmt.execute("""
                     CREATE TABLE IF NOT EXISTS users (
                         username VARCHAR(50) PRIMARY KEY,
-                        password_hash BINARY(32) NOT NULL,
-                        salt BINARY(16) NOT NULL
+                        password_hash VARBINARY NOT NULL,
+                        salt VARBINARY NOT NULL,
+                        email VARCHAR(100),
+                        first_name VARCHAR(50),
+                        last_name VARCHAR(50),
+                        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE
                     );
                     CREATE TABLE IF NOT EXISTS user_roles (
                         username VARCHAR(50),
