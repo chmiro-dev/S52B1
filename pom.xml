@@ -30,43 +30,42 @@
                 </configuration>
             </plugin>
 
-            <!-- Cargo Maven Plugin: Manages GlassFish Lifecycle -->
-            <plugin>
-                <groupId>org.codehaus.cargo</groupId>
-                <artifactId>cargo-maven3-plugin</artifactId>
-                <version>1.10.15</version>
-                <configuration>
-                    <container>
-                        <containerId>glassfish8x</containerId>
-                        <type>installed</type>
-                        <home>C:/path/to/your/glassfish8/glassfish</home>
-                    </container>
-                    <configuration>
-                        <type>existing</type>
-                        <properties>
-                            <cargo.glassfish.admin.port>4848</cargo.glassfish.admin.port>
-                        </properties>
-                    </configuration>
-                </configuration>
-                <executions>
-                    <!-- Start GlassFish before integration testing -->
-                    <execution>
-                        <id>start-container</id>
-                        <phase>pre-integration-test</phase>
-                        <goals>
-                            <goal>start</goal>
-                        </goals>
-                    </execution>
-                    <!-- Stop GlassFish after integration testing -->
-                    <execution>
-                        <id>stop-container</id>
-                        <phase>post-integration-test</phase>
-                        <goals>
-                            <goal>stop</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+          <plugin>
+    <groupId>org.codehaus.mojo</groupId>
+    <artifactId>exec-maven-plugin</artifactId>
+    <version>3.1.1</version>
+    <executions>
+        <!-- 1. Start GlassFish before tests run -->
+        <execution>
+            <id>start-glassfish</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+                <goal>exec</goal>
+            </goals>
+            <configuration>
+                <executable>"C:\glassfish8\bin\asadmin.bat"</executable>
+                <arguments>
+                    <argument>start-domain</argument>
+                </arguments>
+            </configuration>
+        </execution>
+
+        <!-- 2. Stop GlassFish immediately after tests finish -->
+        <execution>
+            <id>stop-glassfish</id>
+            <phase>post-integration-test</phase>
+            <goals>
+                <goal>exec</goal>
+            </goals>
+            <configuration>
+                <executable>"C:\glassfish8\bin\asadmin.bat"</executable>
+                <arguments>
+                    <argument>stop-domain</argument>
+                </arguments>
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
 
             <!-- Maven Failsafe Plugin: Runs Integration Tests (*IT.java) during 'mvn verify' -->
             <plugin>
@@ -120,6 +119,11 @@
         <dependency>
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-core</artifactId>
+            <version>7.0.0.Alpha3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-hikaricp</artifactId>
             <version>7.0.0.Alpha3</version>
         </dependency>
 
