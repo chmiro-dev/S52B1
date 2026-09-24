@@ -116,6 +116,13 @@
             <scope>test</scope>
         </dependency>
 
+            <!-- Hibernate ORM Core (JPA Provider for GlassFish 8 / Jakarta EE 11) -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>7.0.0.Alpha3</version>
+        </dependency>
+
         <!-- JUnit Jupiter API & Engine -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
