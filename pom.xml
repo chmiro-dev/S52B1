@@ -16,7 +16,7 @@
 
     <build>
         <plugins>
-            <!-- Maven Surefire Plugin: Runs Unit Tests (*Test.java) during 'mvn test' -->
+            <!-- Maven Surefire Plugin: Runs Unit Tests (*Test.java) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -30,44 +30,45 @@
                 </configuration>
             </plugin>
 
-          <plugin>
-    <groupId>org.codehaus.mojo</groupId>
-    <artifactId>exec-maven-plugin</artifactId>
-    <version>3.1.1</version>
-    <executions>
-        <!-- 1. Start GlassFish before tests run -->
-        <execution>
-            <id>start-glassfish</id>
-            <phase>pre-integration-test</phase>
-            <goals>
-                <goal>exec</goal>
-            </goals>
-            <configuration>
-                <executable>"C:\glassfish8\bin\asadmin.bat"</executable>
-                <arguments>
-                    <argument>start-domain</argument>
-                </arguments>
-            </configuration>
-        </execution>
+            <!-- Exec Maven Plugin: GlassFish Lifecycle for Integration Tests -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.1</version>
+                <executions>
+                    <!-- 1. Start GlassFish before integration tests -->
+                    <execution>
+                        <id>start-glassfish</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>C:\glassfish8\bin\asadmin.bat</executable>
+                            <arguments>
+                                <argument>start-domain</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
 
-        <!-- 2. Stop GlassFish immediately after tests finish -->
-        <execution>
-            <id>stop-glassfish</id>
-            <phase>post-integration-test</phase>
-            <goals>
-                <goal>exec</goal>
-            </goals>
-            <configuration>
-                <executable>"C:\glassfish8\bin\asadmin.bat"</executable>
-                <arguments>
-                    <argument>stop-domain</argument>
-                </arguments>
-            </configuration>
-        </execution>
-    </executions>
-</plugin>
+                    <!-- 2. Stop GlassFish after integration tests -->
+                    <execution>
+                        <id>stop-glassfish</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>C:\glassfish8\bin\asadmin.bat</executable>
+                            <arguments>
+                                <argument>stop-domain</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 
-            <!-- Maven Failsafe Plugin: Runs Integration Tests (*IT.java) during 'mvn verify' -->
+            <!-- Maven Failsafe Plugin: Runs Integration Tests (*IT.java) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
@@ -92,11 +93,19 @@
     </build>
 
     <dependencies>
-        <!-- Jakarta EE 11 API -->
+        <!-- Jakarta EE 11 Umbrella API (Includes Jakarta Security, CDI, JPA, JAX-RS) -->
         <dependency>
             <groupId>jakarta.platform</groupId>
             <artifactId>jakarta.jakartaee-api</artifactId>
             <version>11.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Jakarta Inject -->
+        <dependency>
+            <groupId>jakarta.inject</groupId>
+            <artifactId>jakarta.inject-api</artifactId>
+            <version>2.0.1</version>
             <scope>provided</scope>
         </dependency>
 
@@ -107,7 +116,7 @@
             <version>6.0.0</version>
         </dependency>
 
-        <!-- H2 Database -->
+        <!-- H2 Database (Testing) -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
@@ -115,7 +124,7 @@
             <scope>test</scope>
         </dependency>
 
-            <!-- Hibernate ORM Core (JPA Provider for GlassFish 8 / Jakarta EE 11) -->
+        <!-- Hibernate ORM Core -->
         <dependency>
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-core</artifactId>
@@ -127,7 +136,7 @@
             <version>7.0.0.Alpha3</version>
         </dependency>
 
-        <!-- JUnit Jupiter API & Engine -->
+        <!-- JUnit Jupiter -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
@@ -141,30 +150,26 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- JJWT API -->
+        <!-- JJWT Dependencies (JWT 0.12.6) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
             <version>0.12.6</version>
         </dependency>
-
-        <!-- JJWT Implementation (Runtime) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
-
-        <!-- JJWT Jackson Integration (Runtime for JSON parsing) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
-        
-        <!-- DataFaker for generating fake data in tests -->
+
+        <!-- DataFaker -->
         <dependency>
             <groupId>net.datafaker</groupId>
             <artifactId>datafaker</artifactId>
@@ -172,5 +177,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
 </project>

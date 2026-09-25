@@ -1,5 +1,6 @@
 package com.bank.security.util;
 
+import com.bank.security.auth.DatabaseLoginModule;
 import com.bank.security.config.DatabaseConfig;
 import com.bank.security.domain.AccountEntity;
 import com.bank.security.domain.AuditLogEntity;
@@ -15,11 +16,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import javax.sql.DataSource;
+import javax.security.auth.Subject;
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.callback.NameCallback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.login.FailedLoginException;
+import java.security.MessageDigest;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -38,7 +47,8 @@ public class DatabaseSeederTest {
         seeder.initializeSchema();
 
         java.util.Map<String, String> props = new java.util.HashMap<>();
-        props.put("jakarta.persistence.jdbc.url", "jdbc:h2:mem:bankdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
+        props.put("jakarta.persistence.jdbc.url",
+                "jdbc:h2:mem:bankdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
         props.put("hibernate.hbm2ddl.auto", "none");
         emf = Persistence.createEntityManagerFactory("bankPU", props);
     }
@@ -60,8 +70,8 @@ public class DatabaseSeederTest {
 
     private int countRows(String tableName) throws SQLException {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + tableName)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + tableName)) {
             assertTrue(rs.next());
             return rs.getInt(1);
         }
@@ -93,20 +103,90 @@ public class DatabaseSeederTest {
         assertTrue(roleCount >= userCount, "Each user must have at least ROLE_USER");
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT username, email, first_name, last_name, password_hash, salt FROM users")) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT username, email, first_name, last_name, password_hash, salt FROM users")) {
             int checked = 0;
             while (rs.next()) {
                 assertNotNull(rs.getString("username"));
                 assertNotNull(rs.getString("email"));
                 assertNotNull(rs.getString("first_name"));
                 assertNotNull(rs.getString("last_name"));
-                assertNotNull(rs.getBytes("password_hash"));
-                assertNotNull(rs.getBytes("salt"));
+
+                byte[] hash = rs.getBytes("password_hash");
+                byte[] salt = rs.getBytes("salt");
+                assertNotNull(hash);
+                assertNotNull(salt);
+                assertEquals(16, salt.length, "Salt must be 16 bytes");
+                assertEquals(32, hash.length, "PBKDF2 256-bit hash must be 32 bytes");
+
+                byte[] expectedHash = DatabaseSeeder.hashPassword(DatabaseSeeder.DEFAULT_PASSWORD, salt);
+                assertArrayEquals(expectedHash, hash, "Stored hash must match PBKDF2 derivation");
+
                 checked++;
             }
             assertEquals(userCount, checked);
         }
+    }
+
+    @Test
+    @DisplayName("Should verify PBKDF2 key derivation and successful authentication with DatabaseLoginModule")
+    void testPbkdf2KeyDerivationAndLoginModuleAuth() throws Exception {
+        String testPassword = "MySecur3BankingPassword!";
+        List<String> usernames = seeder.seedUsers(1, testPassword);
+        String seededUsername = usernames.get(0);
+
+        // 1. Verify credentials from database directly
+        try (Connection conn = dataSource.getConnection();
+                PreparedStatement stmt = conn
+                        .prepareStatement("SELECT password_hash, salt FROM users WHERE username = ?")) {
+            stmt.setString(1, seededUsername);
+            try (ResultSet rs = stmt.executeQuery()) {
+                assertTrue(rs.next());
+                byte[] storedHash = rs.getBytes("password_hash");
+                byte[] storedSalt = rs.getBytes("salt");
+
+                assertEquals(16, storedSalt.length);
+                assertEquals(32, storedHash.length);
+
+                byte[] recomputed = DatabaseSeeder.hashPassword(testPassword, storedSalt);
+                assertTrue(MessageDigest.isEqual(storedHash, recomputed));
+            }
+        }
+
+        // 2. Authenticate through DatabaseLoginModule using the seeded credentials
+        DatabaseLoginModule loginModule = new DatabaseLoginModule();
+        Subject subject = new Subject();
+        CallbackHandler validAuthHandler = callbacks -> {
+            for (Callback cb : callbacks) {
+                if (cb instanceof NameCallback nc) {
+                    nc.setName(seededUsername);
+                } else if (cb instanceof PasswordCallback pc) {
+                    pc.setPassword(testPassword.toCharArray());
+                }
+            }
+        };
+
+        loginModule.initialize(subject, validAuthHandler, new HashMap<>(), new HashMap<>());
+        assertTrue(loginModule.login(), "Login should succeed with correct PBKDF2 password");
+        assertTrue(loginModule.commit(), "Commit should attach principals to Subject");
+        assertFalse(subject.getPrincipals().isEmpty(), "Subject must have authenticated principals");
+
+        // 3. Verify incorrect password fails authentication
+        DatabaseLoginModule failedModule = new DatabaseLoginModule();
+        Subject failedSubject = new Subject();
+        CallbackHandler invalidAuthHandler = callbacks -> {
+            for (Callback cb : callbacks) {
+                if (cb instanceof NameCallback nc) {
+                    nc.setName(seededUsername);
+                } else if (cb instanceof PasswordCallback pc) {
+                    pc.setPassword("WrongPassword!".toCharArray());
+                }
+            }
+        };
+
+        failedModule.initialize(failedSubject, invalidAuthHandler, new HashMap<>(), new HashMap<>());
+        assertThrows(FailedLoginException.class, failedModule::login, "Login must fail with incorrect password");
     }
 
     @Test
@@ -121,8 +201,9 @@ public class DatabaseSeederTest {
         assertEquals(15, countRows("accounts"));
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT account_number, username, account_type, balance, status FROM accounts")) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt
+                        .executeQuery("SELECT account_number, username, account_type, balance, status FROM accounts")) {
             int checked = 0;
             while (rs.next()) {
                 assertTrue(rs.getString("account_number").startsWith("ACCT-"));
@@ -149,8 +230,9 @@ public class DatabaseSeederTest {
         assertEquals(expectedLedgerEntries, countRows("ledger_entries"));
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT transaction_id, entry_type, amount, currency, balance_after, description FROM ledger_entries")) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT transaction_id, entry_type, amount, currency, balance_after, description FROM ledger_entries")) {
             int checked = 0;
             while (rs.next()) {
                 assertTrue(rs.getString("transaction_id").startsWith("TX-"));
@@ -174,8 +256,9 @@ public class DatabaseSeederTest {
         assertEquals(logCount, countRows("audit_logs"));
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT principal, action, entity_name, ip_address, payload_delta, status, timestamp FROM audit_logs")) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT principal, action, entity_name, ip_address, payload_delta, status, timestamp FROM audit_logs")) {
             int checked = 0;
             while (rs.next()) {
                 assertNotNull(rs.getString("principal"));

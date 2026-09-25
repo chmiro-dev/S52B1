@@ -10,8 +10,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -54,8 +52,8 @@ public class EntityPersistenceTest {
     void testUserEntityPersistence() {
         em.getTransaction().begin();
 
-        byte[] hash = new byte[]{1, 2, 3, 4};
-        byte[] salt = new byte[]{5, 6, 7, 8};
+        byte[] hash = new byte[] { 1, 2, 3, 4 };
+        byte[] salt = new byte[] { 5, 6, 7, 8 };
         UserEntity user = new UserEntity("john_doe", hash, salt, "john@example.com", "John", "Doe");
         user.addRole("ROLE_USER");
         user.addRole("ROLE_ADMIN");
@@ -80,7 +78,7 @@ public class EntityPersistenceTest {
     void testAccountEntityPersistence() {
         em.getTransaction().begin();
 
-        UserEntity user = new UserEntity("jane_banker", new byte[]{1}, new byte[]{2});
+        UserEntity user = new UserEntity("jane_banker", new byte[] { 1 }, new byte[] { 2 });
         em.persist(user);
 
         AccountEntity account = new AccountEntity(
@@ -88,8 +86,7 @@ public class EntityPersistenceTest {
                 user,
                 AccountType.CHECKING,
                 new BigDecimal("1500.5000"),
-                "USD"
-        );
+                "USD");
         em.persist(account);
         em.getTransaction().commit();
         em.clear();
@@ -110,10 +107,11 @@ public class EntityPersistenceTest {
     void testLedgerEntryPersistence() {
         em.getTransaction().begin();
 
-        UserEntity user = new UserEntity("ledger_user", new byte[]{1}, new byte[]{2});
+        UserEntity user = new UserEntity("ledger_user", new byte[] { 1 }, new byte[] { 2 });
         em.persist(user);
 
-        AccountEntity account = new AccountEntity("ACCT-456", user, AccountType.SAVINGS, new BigDecimal("2000.0000"), "USD");
+        AccountEntity account = new AccountEntity("ACCT-456", user, AccountType.SAVINGS, new BigDecimal("2000.0000"),
+                "USD");
         em.persist(account);
 
         String txId = UUID.randomUUID().toString();
@@ -124,8 +122,7 @@ public class EntityPersistenceTest {
                 new BigDecimal("500.0000"),
                 "USD",
                 new BigDecimal("2500.0000"),
-                "Direct deposit payroll"
-        );
+                "Direct deposit payroll");
         em.persist(entry);
         em.getTransaction().commit();
         em.clear();
@@ -151,8 +148,7 @@ public class EntityPersistenceTest {
                 "ACCT-100200300",
                 "192.168.1.10",
                 "{\"amount\": 500.00, \"source\": \"ACCT-100\", \"destination\": \"ACCT-200\"}",
-                "SUCCESS"
-        );
+                "SUCCESS");
         em.persist(log);
         em.getTransaction().commit();
         em.clear();

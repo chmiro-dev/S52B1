@@ -5,6 +5,8 @@ import com.bank.security.domain.AccountType;
 import com.bank.security.domain.EntryType;
 import net.datafaker.Faker;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -12,7 +14,9 @@ import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -29,11 +33,20 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * DatabaseSeeder generates deterministic or pseudo-random test datasets using DataFaker
- * and persists them via high-performance JDBC PreparedStatement batch operations.
- * Also manages schema initialization and table truncation to maintain strict test isolation.
+ * DatabaseSeeder generates deterministic or pseudo-random test datasets using
+ * DataFaker
+ * and persists them via high-performance JDBC PreparedStatement batch
+ * operations.
+ * Also manages schema initialization and table truncation to maintain strict
+ * test isolation.
  */
 public class DatabaseSeeder {
+
+    public static final String PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA256";
+    public static final int PBKDF2_ITERATIONS = 210000;
+    public static final int PBKDF2_KEY_LENGTH = 256;
+    public static final int SALT_LENGTH_BYTES = 16;
+    public static final String DEFAULT_PASSWORD = "Password123!";
 
     private final DataSource dataSource;
     private final Connection existingConnection;
@@ -79,7 +92,8 @@ public class DatabaseSeeder {
     }
 
     /**
-     * Executes the DDL statements from classpath resource /schema.sql to set up the H2 database schema.
+     * Executes the DDL statements from classpath resource /schema.sql to set up the
+     * H2 database schema.
      */
     public void initializeSchema() throws SQLException {
         Connection conn = obtainConnection();
@@ -116,7 +130,8 @@ public class DatabaseSeeder {
     }
 
     /**
-     * Truncates all domain tables and resets identity columns while disabling foreign key checks
+     * Truncates all domain tables and resets identity columns while disabling
+     * foreign key checks
      * to preserve test isolation.
      */
     public void truncateAll() throws SQLException {
@@ -127,8 +142,8 @@ public class DatabaseSeeder {
             try (Statement stmt = conn.createStatement()) {
                 // Disable referential integrity for clean truncation
                 stmt.execute("SET REFERENTIAL_INTEGRITY FALSE");
-                
-                String[] identityTables = {"audit_logs", "ledger_entries", "accounts"};
+
+                String[] identityTables = { "audit_logs", "ledger_entries", "accounts" };
                 for (String table : identityTables) {
                     try {
                         stmt.execute("TRUNCATE TABLE " + table + " RESTART IDENTITY");
@@ -137,7 +152,7 @@ public class DatabaseSeeder {
                     }
                 }
 
-                String[] regularTables = {"user_roles", "users"};
+                String[] regularTables = { "user_roles", "users" };
                 for (String table : regularTables) {
                     try {
                         stmt.execute("TRUNCATE TABLE " + table);
@@ -159,17 +174,73 @@ public class DatabaseSeeder {
     }
 
     /**
-     * Seeds user records and their assigned roles in batch.
+     * Derives a 256-bit PBKDF2 key hash using PBKDF2WithHmacSHA256 and 210,000
+     * iterations,
+     * matching the key derivation setup used by DatabaseLoginModule.
+     *
+     * @param password Raw plaintext password characters.
+     * @param salt     Cryptographic salt bytes (16 bytes).
+     * @return 32-byte (256-bit) derived key hash.
+     */
+    public static byte[] hashPassword(char[] password, byte[] salt) {
+        try {
+            PBEKeySpec spec = new PBEKeySpec(password, salt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH);
+            SecretKeyFactory factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM);
+            return factory.generateSecret(spec).getEncoded();
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new IllegalStateException("Failed to hash password with PBKDF2", e);
+        }
+    }
+
+    /**
+     * Derives a 256-bit PBKDF2 key hash for a plaintext String password.
+     *
+     * @param password Raw plaintext password string.
+     * @param salt     Cryptographic salt bytes (16 bytes).
+     * @return 32-byte (256-bit) derived key hash.
+     */
+    public static byte[] hashPassword(String password, byte[] salt) {
+        return hashPassword(password != null ? password.toCharArray() : new char[0], salt);
+    }
+
+    /**
+     * Generates a secure random 16-byte salt.
+     *
+     * @return 16-byte random salt.
+     */
+    public static byte[] generateSalt() {
+        byte[] salt = new byte[SALT_LENGTH_BYTES];
+        new SecureRandom().nextBytes(salt);
+        return salt;
+    }
+
+    /**
+     * Seeds user records and their assigned roles in batch using the default test
+     * password.
      *
      * @param count Number of users to seed.
      * @return List of generated usernames.
      */
     public List<String> seedUsers(int count) throws SQLException {
+        return seedUsers(count, DEFAULT_PASSWORD);
+    }
+
+    /**
+     * Seeds user records and their assigned roles in batch with PBKDF2 password
+     * hashes matching
+     * the system's key derivation setup.
+     *
+     * @param count       Number of users to seed.
+     * @param rawPassword Plaintext password to hash with PBKDF2 for each user.
+     * @return List of generated usernames.
+     */
+    public List<String> seedUsers(int count, String rawPassword) throws SQLException {
         if (count <= 0) {
             return Collections.emptyList();
         }
 
-        String insertUserSql = "INSERT INTO users (username, password_hash, salt, email, first_name, last_name, enabled, created_at, updated_at) " +
+        String insertUserSql = "INSERT INTO users (username, password_hash, salt, email, first_name, last_name, enabled, created_at, updated_at) "
+                +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         String insertRoleSql = "INSERT INTO user_roles (username, role_name) VALUES (?, ?)";
 
@@ -177,10 +248,12 @@ public class DatabaseSeeder {
         Connection conn = obtainConnection();
         boolean previousAutoCommit = conn.getAutoCommit();
 
+        char[] passwordChars = (rawPassword != null ? rawPassword : DEFAULT_PASSWORD).toCharArray();
+
         try {
             conn.setAutoCommit(false);
             try (PreparedStatement userStmt = conn.prepareStatement(insertUserSql);
-                 PreparedStatement roleStmt = conn.prepareStatement(insertRoleSql)) {
+                    PreparedStatement roleStmt = conn.prepareStatement(insertRoleSql)) {
 
                 Instant now = Instant.now();
                 for (int i = 1; i <= count; i++) {
@@ -194,19 +267,20 @@ public class DatabaseSeeder {
                     }
                     usernames.add(username);
 
-                    byte[] salt = new byte[16];
-                    byte[] hash = new byte[32];
+                    byte[] salt = new byte[SALT_LENGTH_BYTES];
                     secureRandom.nextBytes(salt);
-                    secureRandom.nextBytes(hash);
+                    byte[] hash = hashPassword(passwordChars, salt);
 
                     String email = "user" + i + "_" + faker.internet().emailAddress();
                     if (email.length() > 100) {
                         email = email.substring(0, 100);
                     }
                     String firstName = faker.name().firstName();
-                    if (firstName.length() > 50) firstName = firstName.substring(0, 50);
+                    if (firstName.length() > 50)
+                        firstName = firstName.substring(0, 50);
                     String lastName = faker.name().lastName();
-                    if (lastName.length() > 50) lastName = lastName.substring(0, 50);
+                    if (lastName.length() > 50)
+                        lastName = lastName.substring(0, 50);
 
                     userStmt.setString(1, username);
                     userStmt.setBytes(2, hash);
@@ -249,8 +323,8 @@ public class DatabaseSeeder {
     /**
      * Seeds account records associated with the given usernames.
      *
-     * @param usernames        List of existing usernames to associate accounts with.
-     * @param accountsPerUser  Number of accounts to generate per user.
+     * @param usernames       List of existing usernames to associate accounts with.
+     * @param accountsPerUser Number of accounts to generate per user.
      * @return List of generated account IDs.
      */
     public List<Long> seedAccounts(List<String> usernames, int accountsPerUser) throws SQLException {
@@ -258,7 +332,8 @@ public class DatabaseSeeder {
             return Collections.emptyList();
         }
 
-        String insertAccountSql = "INSERT INTO accounts (account_number, username, account_type, balance, currency, status, version, created_at, updated_at) " +
+        String insertAccountSql = "INSERT INTO accounts (account_number, username, account_type, balance, currency, status, version, created_at, updated_at) "
+                +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         List<Long> accountIds = new ArrayList<>();
@@ -277,7 +352,8 @@ public class DatabaseSeeder {
                     for (int a = 0; a < accountsPerUser; a++) {
                         String accountNumber = String.format("ACCT-%06d-%04d", accountCounter++, rnd.nextInt(10000));
                         AccountType accountType = accountTypes[a % accountTypes.length];
-                        BigDecimal balance = BigDecimal.valueOf(100.0 + rnd.nextDouble() * 25000.0).setScale(4, RoundingMode.HALF_UP);
+                        BigDecimal balance = BigDecimal.valueOf(100.0 + rnd.nextDouble() * 25000.0).setScale(4,
+                                RoundingMode.HALF_UP);
 
                         pstmt.setString(1, accountNumber);
                         pstmt.setString(2, username);
@@ -322,7 +398,8 @@ public class DatabaseSeeder {
             return;
         }
 
-        String insertLedgerSql = "INSERT INTO ledger_entries (transaction_id, account_id, entry_type, amount, currency, balance_after, description, created_at) " +
+        String insertLedgerSql = "INSERT INTO ledger_entries (transaction_id, account_id, entry_type, amount, currency, balance_after, description, created_at) "
+                +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
         Connection conn = obtainConnection();
@@ -341,7 +418,8 @@ public class DatabaseSeeder {
                     for (int e = 0; e < entriesPerAccount; e++) {
                         String txId = "TX-" + UUID.randomUUID().toString();
                         EntryType entryType = entryTypes[e % entryTypes.length];
-                        BigDecimal amount = BigDecimal.valueOf(10.0 + rnd.nextDouble() * 500.0).setScale(4, RoundingMode.HALF_UP);
+                        BigDecimal amount = BigDecimal.valueOf(10.0 + rnd.nextDouble() * 500.0).setScale(4,
+                                RoundingMode.HALF_UP);
 
                         if (entryType == EntryType.CREDIT) {
                             runningBalance = runningBalance.add(amount);
@@ -349,7 +427,8 @@ public class DatabaseSeeder {
                             runningBalance = runningBalance.subtract(amount);
                         }
 
-                        String description = (entryType == EntryType.CREDIT ? "Deposit: " : "Withdrawal: ") + faker.commerce().productName();
+                        String description = (entryType == EntryType.CREDIT ? "Deposit: " : "Withdrawal: ")
+                                + faker.commerce().productName();
                         if (description.length() > 255) {
                             description = description.substring(0, 255);
                         }
@@ -388,16 +467,17 @@ public class DatabaseSeeder {
             return;
         }
 
-        String insertAuditSql = "INSERT INTO audit_logs (principal, action, entity_name, entity_id, ip_address, payload_delta, status, timestamp) " +
+        String insertAuditSql = "INSERT INTO audit_logs (principal, action, entity_name, entity_id, ip_address, payload_delta, status, timestamp) "
+                +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-        String[] actions = {"USER_LOGIN", "TRANSFER_FUNDS", "UPDATE_PASSWORD", "FREEZE_ACCOUNT", "CREATE_ACCOUNT"};
-        String[] entities = {"UserEntity", "AccountEntity", "LedgerEntry"};
-        String[] statuses = {"SUCCESS", "FAILED"};
+        String[] actions = { "USER_LOGIN", "TRANSFER_FUNDS", "UPDATE_PASSWORD", "FREEZE_ACCOUNT", "CREATE_ACCOUNT" };
+        String[] entities = { "UserEntity", "AccountEntity", "LedgerEntry" };
+        String[] statuses = { "SUCCESS", "FAILED" };
 
         Connection conn = obtainConnection();
         boolean previousAutoCommit = conn.getAutoCommit();
-        Random rnd = new Random();
+        // Random rnd = new Random();
 
         try {
             conn.setAutoCommit(false);
@@ -406,14 +486,16 @@ public class DatabaseSeeder {
 
                 for (int i = 0; i < count; i++) {
                     String principal = "user_" + faker.internet().username().replaceAll("[^a-zA-Z0-9_]", "");
-                    if (principal.length() > 100) principal = principal.substring(0, 100);
+                    if (principal.length() > 100)
+                        principal = principal.substring(0, 100);
 
                     String action = actions[i % actions.length];
                     String entityName = entities[i % entities.length];
                     String entityId = "ID-" + (1000 + i);
                     String ipAddress = faker.internet().ipV4Address();
                     String status = statuses[i % statuses.length];
-                    String payloadDelta = String.format("{\"action\":\"%s\",\"entityId\":\"%s\",\"seq\":%d}", action, entityId, i);
+                    String payloadDelta = String.format("{\"action\":\"%s\",\"entityId\":\"%s\",\"seq\":%d}", action,
+                            entityId, i);
 
                     pstmt.setString(1, principal);
                     pstmt.setString(2, action);
@@ -439,7 +521,8 @@ public class DatabaseSeeder {
     }
 
     /**
-     * Complete seed execution: seeds users, accounts, ledger entries, and audit logs.
+     * Complete seed execution: seeds users, accounts, ledger entries, and audit
+     * logs.
      *
      * @param userCount               Number of users to create.
      * @param accountsPerUser         Number of accounts per user.
@@ -447,7 +530,8 @@ public class DatabaseSeeder {
      * @param auditLogCount           Number of audit logs to generate.
      * @return SeederResult summarizing generated records.
      */
-    public SeederResult seedAll(int userCount, int accountsPerUser, int ledgerEntriesPerAccount, int auditLogCount) throws SQLException {
+    public SeederResult seedAll(int userCount, int accountsPerUser, int ledgerEntriesPerAccount, int auditLogCount)
+            throws SQLException {
         List<String> usernames = seedUsers(userCount);
         List<Long> accountIds = seedAccounts(usernames, accountsPerUser);
         seedLedgerEntries(accountIds, ledgerEntriesPerAccount);

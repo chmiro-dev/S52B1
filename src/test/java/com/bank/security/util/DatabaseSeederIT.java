@@ -12,7 +12,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -58,7 +57,7 @@ public class DatabaseSeederIT {
         assertEquals(auditLogCount, result.getAuditLogCount());
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
 
             try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users")) {
                 assertTrue(rs.next());
@@ -82,8 +81,8 @@ public class DatabaseSeederIT {
         seeder.truncateAll();
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users")) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users")) {
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1));
         }

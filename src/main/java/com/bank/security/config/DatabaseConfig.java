@@ -6,7 +6,6 @@ import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import javax.sql.DataSource;
-import java.sql.SQLException;
 
 @ApplicationScoped
 public class DatabaseConfig {
@@ -18,7 +17,7 @@ public class DatabaseConfig {
     public DataSource getDataSource() {
         if (this.dataSource == null) {
             HikariConfig config = new HikariConfig();
-            
+
             // H2 Database configuration running in PostgreSQL compatibility mode
             config.setJdbcUrl("jdbc:h2:mem:bankdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
             config.setDriverClassName("org.h2.Driver");

@@ -32,7 +32,7 @@ public class DatabaseLoginModule implements LoginModule {
     private boolean commitSucceeded = false;
 
     private String username;
-    private UserData pendingUserData; // Stores fetched user data until commit()
+    UserData pendingUserData; // Stores fetched user data until commit()
     private Principal userPrincipal;
     private final List<Principal> rolePrincipals = new ArrayList<>();
 
@@ -168,7 +168,7 @@ public class DatabaseLoginModule implements LoginModule {
         }
     }
 
-    private UserData fetchUserFromDatabase(String username) {
+    UserData fetchUserFromDatabase(String username) {
         String dbUrl = System.getenv().getOrDefault("DB_URL", "jdbc:h2:mem:bankdb;DB_CLOSE_DELAY=-1");
         String dbUser = System.getenv().getOrDefault("DB_USER", "sa");
         String dbPass = System.getenv().getOrDefault("DB_PASSWORD", "");
