@@ -22,7 +22,7 @@ public class EntityPersistenceTest {
     @BeforeAll
     static void initEmf() {
         try {
-            emf = Persistence.createEntityManagerFactory("bankPU");
+            emf = Persistence.createEntityManagerFactory("bankTestPU");
         } catch (Exception e) {
             e.printStackTrace();
             throw e;

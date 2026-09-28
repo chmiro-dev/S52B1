@@ -56,7 +56,8 @@ public class LedgerEntry implements Serializable {
     public LedgerEntry() {
     }
 
-    public LedgerEntry(String transactionId, AccountEntity account, EntryType entryType, BigDecimal amount, String currency, String description) {
+    public LedgerEntry(String transactionId, AccountEntity account, EntryType entryType, BigDecimal amount,
+            String currency, String description) {
         this.transactionId = transactionId;
         this.account = account;
         this.entryType = entryType;
@@ -65,7 +66,8 @@ public class LedgerEntry implements Serializable {
         this.description = description;
     }
 
-    public LedgerEntry(String transactionId, AccountEntity account, EntryType entryType, BigDecimal amount, String currency, BigDecimal balanceAfter, String description) {
+    public LedgerEntry(String transactionId, AccountEntity account, EntryType entryType, BigDecimal amount,
+            String currency, BigDecimal balanceAfter, String description) {
         this.transactionId = transactionId;
         this.account = account;
         this.entryType = entryType;
@@ -161,11 +163,14 @@ public class LedgerEntry implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         LedgerEntry that = (LedgerEntry) o;
         return Objects.equals(id, that.id) ||
-                (id == null && Objects.equals(transactionId, that.transactionId) && Objects.equals(account, that.account) && Objects.equals(entryType, that.entryType));
+                (id == null && Objects.equals(transactionId, that.transactionId)
+                        && Objects.equals(account, that.account) && Objects.equals(entryType, that.entryType));
     }
 
     @Override

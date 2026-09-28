@@ -84,4 +84,10 @@ public class AccountRepository {
                 .setParameter("userId", userId)
                 .getResultList();
     }
+
+    public void deleteAll() {
+        entityManager.getTransaction().begin();
+        entityManager.createQuery("DELETE FROM Account a").executeUpdate();
+        entityManager.getTransaction().commit();
+    }
 }

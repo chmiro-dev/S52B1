@@ -101,6 +101,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Jakarta Transaction API   -->
+        <dependency>
+            <groupId>jakarta.transaction</groupId>
+            <artifactId>jakarta.transaction-api</artifactId>
+            <version>2.0.1</version>
+        </dependency>
+
         <!-- Jakarta Inject -->
         <dependency>
             <groupId>jakarta.inject</groupId>
@@ -122,6 +129,13 @@
             <artifactId>h2</artifactId>
             <version>2.2.224</version>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.3</version> <!-- or your project's target version -->
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Hibernate ORM Core -->

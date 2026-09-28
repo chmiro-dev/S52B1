@@ -50,7 +50,7 @@ public class DatabaseSeederTest {
         props.put("jakarta.persistence.jdbc.url",
                 "jdbc:h2:mem:bankdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
         props.put("hibernate.hbm2ddl.auto", "none");
-        emf = Persistence.createEntityManagerFactory("bankPU", props);
+        emf = Persistence.createEntityManagerFactory("bankTestPU", props);
     }
 
     @AfterAll

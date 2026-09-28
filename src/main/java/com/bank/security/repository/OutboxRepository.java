@@ -76,4 +76,19 @@ public class OutboxRepository {
             entityManager.merge(message);
         }
     }
+
+    /**
+     * Retrieves all outbox messages associated with a specific aggregate instance
+     * ID.
+     *
+     * @param aggregateId Unique identifier of the domain aggregate (e.g.,
+     *                    transactionId)
+     * @return List of matching OutboxMessage entities
+     */
+    public List<OutboxMessage> findByAggregateId(String aggregateId) {
+        return entityManager.createQuery(
+                "SELECT m FROM OutboxMessage m WHERE m.aggregateId = :aggregateId", OutboxMessage.class)
+                .setParameter("aggregateId", aggregateId)
+                .getResultList();
+    }
 }

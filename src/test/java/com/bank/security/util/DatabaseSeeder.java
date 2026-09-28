@@ -143,7 +143,7 @@ public class DatabaseSeeder {
                 // Disable referential integrity for clean truncation
                 stmt.execute("SET REFERENTIAL_INTEGRITY FALSE");
 
-                String[] identityTables = { "audit_logs", "ledger_entries", "accounts" };
+                String[] identityTables = { "audit_logs", "outbox", "ledger_entries", "accounts" };
                 for (String table : identityTables) {
                     try {
                         stmt.execute("TRUNCATE TABLE " + table + " RESTART IDENTITY");

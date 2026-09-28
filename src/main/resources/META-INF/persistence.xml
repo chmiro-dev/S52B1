@@ -11,6 +11,7 @@
         <class>com.bank.security.domain.AccountEntity</class>
         <class>com.bank.security.domain.LedgerEntry</class>
         <class>com.bank.security.domain.AuditLogEntity</class>
+        <class>com.bank.security.domain.OutboxMessage</class>
 
         <properties>
             <!-- Production PostgreSQL Connection -->
