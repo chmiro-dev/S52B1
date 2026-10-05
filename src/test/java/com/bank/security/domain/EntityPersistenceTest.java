@@ -147,8 +147,8 @@ public class EntityPersistenceTest {
                 "AccountEntity",
                 "ACCT-100200300",
                 "192.168.1.10",
-                "{\"amount\": 500.00, \"source\": \"ACCT-100\", \"destination\": \"ACCT-200\"}",
-                "SUCCESS");
+                "SUCCESS",
+                "{\"amount\": 500.00, \"source\": \"ACCT-100\", \"destination\": \"ACCT-200\"}");
         em.persist(log);
         em.getTransaction().commit();
         em.clear();

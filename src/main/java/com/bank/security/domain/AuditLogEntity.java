@@ -5,42 +5,43 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
-import java.io.Serializable;
 import java.time.Instant;
 import java.util.Objects;
 
 @Entity
 @Table(name = "audit_logs")
-public class AuditLogEntity implements Serializable {
+public class AuditLogEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "principal", nullable = false, length = 100)
+    @Column(name = "principal", nullable = false, length = 100, updatable = false)
     private String principal;
 
-    @Column(name = "action", nullable = false, length = 100)
+    @Column(name = "action", nullable = false, length = 100, updatable = false)
     private String action;
 
-    @Column(name = "entity_name", length = 100)
+    @Column(name = "entity_name", length = 100, updatable = false)
     private String entityName;
 
-    @Column(name = "entity_id", length = 100)
+    @Column(name = "entity_id", length = 100, updatable = false)
     private String entityId;
 
-    @Column(name = "ip_address", length = 45)
+    @Column(name = "ip_address", length = 45, updatable = false)
     private String ipAddress;
 
-    @Column(name = "payload_delta", columnDefinition = "TEXT")
-    private String payloadDelta;
-
-    @Column(name = "status", length = 20)
+    @Column(name = "status", length = 20, updatable = false)
     private String status;
+
+    @Lob
+    @Column(name = "payload_delta", updatable = false)
+    private String payloadDelta;
 
     @Column(name = "timestamp", nullable = false, updatable = false)
     private Instant timestamp;
@@ -48,18 +49,19 @@ public class AuditLogEntity implements Serializable {
     public AuditLogEntity() {
     }
 
-    public AuditLogEntity(String principal, String action, String entityName, String entityId, String ipAddress, String payloadDelta, String status) {
+    public AuditLogEntity(String principal, String action, String entityName, String entityId,
+            String ipAddress, String status, String payloadDelta) {
         this.principal = principal;
         this.action = action;
         this.entityName = entityName;
         this.entityId = entityId;
         this.ipAddress = ipAddress;
-        this.payloadDelta = payloadDelta;
         this.status = status;
+        this.payloadDelta = payloadDelta;
     }
 
     @PrePersist
-    public void onPrePersist() {
+    protected void onCreate() {
         if (this.timestamp == null) {
             this.timestamp = Instant.now();
         }
@@ -113,20 +115,20 @@ public class AuditLogEntity implements Serializable {
         this.ipAddress = ipAddress;
     }
 
-    public String getPayloadDelta() {
-        return payloadDelta;
-    }
-
-    public void setPayloadDelta(String payloadDelta) {
-        this.payloadDelta = payloadDelta;
-    }
-
     public String getStatus() {
         return status;
     }
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getPayloadDelta() {
+        return payloadDelta;
+    }
+
+    public void setPayloadDelta(String payloadDelta) {
+        this.payloadDelta = payloadDelta;
     }
 
     public Instant getTimestamp() {
@@ -139,8 +141,10 @@ public class AuditLogEntity implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         AuditLogEntity that = (AuditLogEntity) o;
         return Objects.equals(id, that.id);
     }
