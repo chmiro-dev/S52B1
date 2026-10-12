@@ -15,17 +15,6 @@ public class UserRepository {
         this.entityManager = entityManager;
     }
 
-    /*
-     * public UserEntity save(UserEntity user) {
-     * if (user.getId() == null) {
-     * entityManager.persist(user);
-     * return user;
-     * } else {
-     * return entityManager.merge(user);
-     * }
-     * }
-     */
-
     public Optional<UserEntity> findById(Long id) {
         return Optional.ofNullable(entityManager.find(UserEntity.class, id));
     }
@@ -54,9 +43,11 @@ public class UserRepository {
         }
     }
 
+    /**
+     * Deletes all users (expects an active transaction managed by the service/test
+     * caller).
+     */
     public void deleteAll() {
-        entityManager.getTransaction().begin();
-        entityManager.createQuery("DELETE FROM User u").executeUpdate();
-        entityManager.getTransaction().commit();
+        entityManager.createQuery("DELETE FROM UserEntity u").executeUpdate();
     }
 }

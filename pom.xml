@@ -163,6 +163,14 @@
             <version>7.0.0.Alpha3</version>
         </dependency>
 
+        <!-- Mockito Core -->
+    <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-core</artifactId>
+        <version>5.11.0</version>
+        <scope>test</scope>
+    </dependency>
+
         <!-- JUnit Jupiter -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -176,6 +184,13 @@
             <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
+         <!-- Mockito Extension for JUnit Jupiter -->
+    <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-junit-jupiter</artifactId>
+        <version>5.11.0</version>
+        <scope>test</scope>
+    </dependency>
 
         <!-- JJWT Dependencies (JWT 0.12.6) -->
         <dependency>
@@ -193,7 +208,6 @@
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
             <version>0.12.6</version>
-            <scope>runtime</scope>
         </dependency>
 
         <!-- DataFaker -->

@@ -60,8 +60,8 @@ public class AccountRepository {
 
     /**
      * Finds an account by its unique account number and applies a pessimistic write
-     * lock
-     * to prevent concurrent balance modifications during transactional updates.
+     * lock to prevent concurrent balance modifications during transactional
+     * updates.
      */
     public Optional<AccountEntity> findByAccountNumberWithLock(String accountNumber) {
         List<AccountEntity> results = entityManager.createQuery(
@@ -79,15 +79,17 @@ public class AccountRepository {
      */
     public List<AccountEntity> findByUserId(Long userId) {
         return entityManager.createQuery(
-                "SELECT a FROM AccountEntity a WHERE a.userId = :userId ORDER BY a.createdAt DESC",
+                "SELECT a FROM AccountEntity a WHERE a.user.id = :userId ORDER BY a.createdAt DESC",
                 AccountEntity.class)
                 .setParameter("userId", userId)
                 .getResultList();
     }
 
+    /**
+     * Deletes all accounts (expects an active transaction managed by the
+     * service/test caller).
+     */
     public void deleteAll() {
-        entityManager.getTransaction().begin();
-        entityManager.createQuery("DELETE FROM Account a").executeUpdate();
-        entityManager.getTransaction().commit();
+        entityManager.createQuery("DELETE FROM AccountEntity a").executeUpdate();
     }
 }

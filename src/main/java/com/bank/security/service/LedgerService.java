@@ -5,9 +5,11 @@ import com.bank.security.domain.AccountStatus;
 import com.bank.security.domain.EntryType;
 import com.bank.security.domain.LedgerEntry;
 import com.bank.security.domain.OutboxMessage;
+import com.bank.security.event.FundTransferPayload;
 import com.bank.security.repository.AccountRepository;
 import com.bank.security.repository.LedgerEntryRepository;
 import com.bank.security.repository.OutboxRepository;
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -117,9 +119,12 @@ public class LedgerService {
         ledgerEntryRepository.save(creditEntry);
 
         // Construct Outbox event atomically within the same database transaction
-        String payload = String.format(
-                "{\"transactionId\":\"%s\",\"sourceAccount\":\"%s\",\"destinationAccount\":\"%s\",\"amount\":%s}",
-                transactionId, sourceAccountNumber, destinationAccountNumber, amount.toPlainString());
+        FundTransferPayload eventPayload = new FundTransferPayload(
+                transactionId,
+                sourceAccountNumber,
+                destinationAccountNumber,
+                amount);
+        String payload = com.bank.security.util.JsonUtil.toJson(eventPayload);
 
         OutboxMessage outboxMessage = new OutboxMessage(
                 "LEDGER_TRANSACTION",
